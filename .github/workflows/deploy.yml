@@ -17,8 +17,8 @@ jobs:
       - name: Authenticate with Amazon Web Services
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: {{ secrets.AWS_ACCESS_KEY_ID }
+          aws-secret-access-key: {{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
       - name: Secure Log In to Amazon ECR
@@ -49,7 +49,7 @@ jobs:
       - name: Execute Zero-Downtime Rolling Update on AWS Fargate
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
-          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          task-definition: { steps.task-def.outputs.task-definition }
           service: cloudops-web-service-tf
           cluster: cloudops-apps-cluster-tf
           wait-for-service-stability: true
