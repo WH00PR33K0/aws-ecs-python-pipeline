@@ -11,49 +11,17 @@ permissions:
 
 jobs:
   deploy:
-    name: Build, Package, and Ship to AWS Fargate
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Authenticate with Amazon Web Services
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::396037508514:role/github-actions-ecs-deploy
           aws-region: us-east-1
 
       - name: Secure Log In to Amazon ECR
-        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build, Label, and Push Container Image to ECR
-        env:
-          ECR_REGISTRY: 396037508514.dkr.ecr.us-east-1.amazonaws.com
-          ECR_REPOSITORY: aws-ecs-python-pipeline
-          IMAGE_TAG: latest
-        run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
-      - name: Download Active ECS Task Blueprint
-        run: |
-          aws ecs describe-task-definition --task-definition cloudops-app-task-tf --query taskDefinition > task-definition.json
-
-      - name: Inject Fresh Image into ECS Blueprint
-        id: task-def
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: task-definition.json
-          container-name: cloudops-app
-          image: 396037508514.dkr.ecr.us-east-1.amazonaws.com/aws-ecs-python-pipeline:latest
-
-      - name: Execute Zero-Downtime Rolling Update on AWS Fargate
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.task-def.outputs.task-definition }}
-          service: cloudops-web-service-tf
-          cluster: cloudops-apps-cluster-tf
-          wait-for-service-stability: true
-          wait-for-service-stability: true
