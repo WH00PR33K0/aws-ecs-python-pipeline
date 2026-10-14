@@ -27,9 +27,9 @@ jobs:
       - name: Authenticate with Amazon Web Services
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{{{ secrets.AWS_ACCESS_KEY_ID }}}}
-          aws-secret-access-key: ${{{{ secrets.AWS_SECRET_ACCESS_KEY }}}}
-          aws-region: {region}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
 
       - name: Secure Log In to Amazon ECR
         id: login-ecr
