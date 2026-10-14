@@ -6,22 +6,72 @@ on:
       - main
 
 permissions:
-  id-token: write
+  id-token: write      # required for OIDC
   contents: read
 
 jobs:
   deploy:
+    name: Build, Package, and Ship to AWS Fargate
     runs-on: ubuntu-latest
 
+    env:
+      ECR_REGISTRY: 396037508514.dkr.ecr.us-east-1.amazonaws.com
+      ECR_REPOSITORY: aws-ecs-python-pipeline
+      IMAGE_TAG: latest
+      TASK_DEFINITION_NAME: cloudops-app-task-tf
+      CONTAINER_NAME: cloudops-app
+      ECS_SERVICE: cloudops-web-service-tf
+      ECS_CLUSTER: cloudops-apps-cluster-tf
+      AWS_REGION: us-east-1
+
     steps:
-      - name: Checkout Source Code
+      - name: Checkout source code
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
+      - name: Verify AWS OIDC role secret exists
+        run: |
+          if [ -z "$AWS_ROLE_TO_ASSUME" ]; then
+            echo "ERROR: Repository secret AWS_ROLE_TO_ASSUME is not set."
+            echo "Create secret: Settings → Secrets and variables → Actions → AWS_ROLE_TO_ASSUME"
+            exit 1
+          fi
+        env:
+          AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+
+      - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::396037508514:role/github-actions-ecs-deploy
-          aws-region: us-east-1
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Secure Log In to Amazon ECR
+      - name: Verify assumed identity
+        run: aws sts get-caller-identity
+
+      - name: Secure log in to Amazon ECR
+        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, label, and push container image to ECR
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Download active ECS task blueprint
+        run: |
+          aws ecs describe-task-definition --task-definition $TASK_DEFINITION_NAME --query taskDefinition > task-definition.json
+
+      - name: Inject fresh image into ECS blueprint
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+
+      - name: Execute zero-downtime rolling update on AWS Fargate
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
