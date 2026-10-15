@@ -37,7 +37,7 @@ jobs:
         env:
           AWS_ROLE_TO_ASSUME: ${{secrets.AWS_ROLE_TO_ASSUME}}
 
-      - name: Debug OIDC token claims
+      
         run: |
           TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
             "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r .value)
