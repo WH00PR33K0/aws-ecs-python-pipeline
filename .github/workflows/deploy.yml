@@ -35,7 +35,7 @@ jobs:
             exit 1
           fi
         env:
-          AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          AWS_ROLE_TO_ASSUME: ${{secrets.AWS_ROLE_TO_ASSUME}}
 
       - name: Debug OIDC token claims
         run: |
@@ -46,8 +46,8 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{secrets.AWS_ROLE_TO_ASSUME}}
+          aws-region: ${{env.AWS_REGION}}
 
       - name: Verify assumed identity
         run: aws sts get-caller-identity
@@ -70,7 +70,7 @@ jobs:
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: task-definition.json
-          container-name: ${{ env.CONTAINER_NAME }}
+          container-name: ${{env.CONTAINER_NAME}}
           image: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
 
       - name: Deploy to ECS Fargate
