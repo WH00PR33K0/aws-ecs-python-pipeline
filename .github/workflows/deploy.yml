@@ -6,7 +6,7 @@ on:
       - main
 
 permissions:
-  id-token: write      # required for OIDC
+  id-token: write   # required for OIDC
   contents: read
 
 jobs:
@@ -32,11 +32,16 @@ jobs:
         run: |
           if [ -z "$AWS_ROLE_TO_ASSUME" ]; then
             echo "ERROR: Repository secret AWS_ROLE_TO_ASSUME is not set."
-            echo "Create secret: Settings → Secrets and variables → Actions → AWS_ROLE_TO_ASSUME"
             exit 1
           fi
         env:
           AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+
+      - name: Debug OIDC token claims
+        run: |
+          TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r .value)
+          echo "$TOKEN" | cut -d. -f2 | python3 -c "import sys,base64,json; s=sys.stdin.read().strip(); s+='='*(-len(s)%4); d=json.loads(base64.urlsafe_b64decode(s)); print({k: d.get(k) for k in ('iss','aud','sub')})"
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -56,11 +61,11 @@ jobs:
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-      - name: Download active ECS task blueprint
+      - name: Download active ECS task definition
         run: |
           aws ecs describe-task-definition --task-definition $TASK_DEFINITION_NAME --query taskDefinition > task-definition.json
 
-      - name: Inject fresh image into ECS blueprint
+      - name: Render task definition with new image
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
@@ -68,7 +73,7 @@ jobs:
           container-name: ${{ env.CONTAINER_NAME }}
           image: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
 
-      - name: Execute zero-downtime rolling update on AWS Fargate
+      - name: Deploy to ECS Fargate
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
